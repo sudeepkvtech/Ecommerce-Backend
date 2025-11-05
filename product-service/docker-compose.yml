@@ -1,0 +1,254 @@
+# Docker Compose Configuration for Product Service
+# This file defines and configures the MySQL database for local development
+
+# What is Docker Compose?
+# -----------------------
+# Docker Compose is a tool for defining and running multi-container Docker applications
+# Instead of running multiple docker run commands, you define everything in this YAML file
+# Then run: docker-compose up
+#
+# Benefits:
+# - Easy setup: One command starts all services
+# - Consistent environment: Same database setup across all developers
+# - Isolation: Database runs in container, doesn't affect host system
+# - Easy cleanup: docker-compose down removes everything
+
+# Version of Docker Compose file format
+# version 3.8 is compatible with Docker Engine 19.03.0+
+version: '3.8'
+
+# Services section defines containers to run
+services:
+
+  # MySQL database service
+  # Service name: mysql-product-service
+  # Can be referenced by this name in Docker network
+  mysql-product-service:
+
+    # Docker image to use
+    # mysql:8.0 specifies MySQL version 8.0 (latest stable)
+    # Docker will pull this image from Docker Hub if not present locally
+    image: mysql:8.0
+
+    # Container name
+    # This name appears when you run: docker ps
+    # Makes it easy to identify the container
+    container_name: mysql-product-service
+
+    # Environment variables for MySQL container
+    # These configure MySQL on first startup
+    environment:
+
+      # Root password for MySQL
+      # SECURITY WARNING: Change this in production!
+      # In production, use Docker secrets or environment files
+      MYSQL_ROOT_PASSWORD: root
+
+      # Database name to create automatically
+      # MySQL will create this database on first startup
+      # Matches spring.datasource.url in application.yml
+      MYSQL_DATABASE: productdb
+
+      # MySQL user to create (optional)
+      # If not specified, use root user
+      # MYSQL_USER: productuser
+
+      # Password for the MySQL user (optional)
+      # MYSQL_PASSWORD: productpass
+
+    # Port mapping: host:container
+    # 3306:3306 maps port 3306 on host to port 3306 in container
+    # Format: HOST_PORT:CONTAINER_PORT
+    #
+    # After starting container:
+    # - MySQL accessible at: localhost:3306
+    # - Spring Boot application connects to: localhost:3306
+    #
+    # To avoid conflicts if MySQL already running on host:
+    # - Change to 3307:3306 (host uses 3307, container uses 3306)
+    # - Update application.yml to use port 3307
+    ports:
+      - "3306:3306"
+
+    # Volume mapping for data persistence
+    # Without volumes, data is lost when container stops
+    # With volumes, data persists across container restarts
+    volumes:
+
+      # mysql-product-data is a named volume (defined below)
+      # /var/lib/mysql is where MySQL stores database files in container
+      # All data written to /var/lib/mysql is persisted in the volume
+      #
+      # Benefits:
+      # - Data survives container restart
+      # - Data survives docker-compose down (unless you use -v flag)
+      # - Can be backed up and restored
+      - mysql-product-data:/var/lib/mysql
+
+    # Health check to ensure MySQL is ready
+    # Docker will periodically check if MySQL is healthy
+    # Useful for:
+    # - Waiting for MySQL before starting application
+    # - Monitoring container health
+    # - Automatic restart if unhealthy
+    healthcheck:
+
+      # Command to check if MySQL is ready
+      # mysqladmin ping: Checks if MySQL server is responding
+      # --silent: Don't output anything (exit code only)
+      # Exit code 0 = healthy, non-zero = unhealthy
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+
+      # How long to wait before first health check
+      # Give MySQL time to start up before checking
+      start_period: 30s
+
+      # How often to check health
+      # Check every 10 seconds
+      interval: 10s
+
+      # How long to wait for health check to complete
+      # If check takes > 5 seconds, consider it failed
+      timeout: 5s
+
+      # How many consecutive failures before marking unhealthy
+      # After 3 failed checks, container is marked unhealthy
+      retries: 3
+
+    # Restart policy
+    # unless-stopped: Always restart container unless explicitly stopped
+    # Other options:
+    # - no: Never restart
+    # - always: Always restart
+    # - on-failure: Restart only on error
+    restart: unless-stopped
+
+    # Network configuration
+    # All services in this file are on the same network
+    # They can communicate using service names
+    # Example: Spring Boot can connect to "mysql-product-service:3306"
+    networks:
+      - product-service-network
+
+# Volumes section defines named volumes
+# These are persistent storage areas managed by Docker
+volumes:
+
+  # Named volume for MySQL data
+  # Docker creates and manages this volume
+  # Location on host: /var/lib/docker/volumes/mysql-product-data
+  #
+  # To view volume details:
+  # docker volume inspect mysql-product-data
+  #
+  # To backup volume:
+  # docker run --rm -v mysql-product-data:/data -v $(pwd):/backup alpine tar czf /backup/mysql-backup.tar.gz /data
+  #
+  # To restore volume:
+  # docker run --rm -v mysql-product-data:/data -v $(pwd):/backup alpine tar xzf /backup/mysql-backup.tar.gz -C /
+  mysql-product-data:
+
+# Networks section defines custom networks
+# Containers on the same network can communicate
+networks:
+
+  # Custom network for product service
+  # All containers in this docker-compose file use this network
+  # Driver: bridge (default) - creates a private network for containers
+  product-service-network:
+    driver: bridge
+
+# ============================================================================
+# How to Use This Docker Compose File
+# ============================================================================
+#
+# 1. START SERVICES
+#    ---------------
+#    cd product-service
+#    docker-compose up
+#
+#    This will:
+#    - Pull MySQL 8.0 image (if not already downloaded)
+#    - Create mysql-product-service container
+#    - Create productdb database
+#    - Start MySQL on port 3306
+#    - Create volume for data persistence
+#
+#    Add -d flag to run in background (detached mode):
+#    docker-compose up -d
+#
+# 2. VIEW LOGS
+#    ----------
+#    docker-compose logs
+#    docker-compose logs -f  (follow logs in real-time)
+#    docker-compose logs mysql-product-service
+#
+# 3. STOP SERVICES
+#    -------------
+#    docker-compose down
+#
+#    This will:
+#    - Stop containers
+#    - Remove containers
+#    - Keep volumes (data persists)
+#
+#    To remove volumes too:
+#    docker-compose down -v
+#
+# 4. VIEW RUNNING SERVICES
+#    ----------------------
+#    docker-compose ps
+#
+# 5. CONNECT TO MYSQL
+#    ------------------
+#    # Using docker exec:
+#    docker exec -it mysql-product-service mysql -u root -p
+#    # Enter password: root
+#
+#    # Using MySQL client from host:
+#    mysql -h localhost -P 3306 -u root -p
+#    # Enter password: root
+#
+# 6. CHECK HEALTH STATUS
+#    --------------------
+#    docker-compose ps
+#    # Look for "(healthy)" in the output
+#
+# 7. RESTART SERVICES
+#    -----------------
+#    docker-compose restart
+#    docker-compose restart mysql-product-service
+#
+# ============================================================================
+# Troubleshooting
+# ============================================================================
+#
+# Problem: Port 3306 already in use
+# Solution: Either stop local MySQL or change port mapping to 3307:3306
+#
+# Problem: Container unhealthy
+# Solution: Check logs with docker-compose logs mysql-product-service
+#
+# Problem: Can't connect from Spring Boot
+# Solution: Ensure application.yml has correct host (localhost) and port (3306)
+#
+# Problem: Data lost after restart
+# Solution: Make sure you're not using docker-compose down -v (removes volumes)
+#
+# ============================================================================
+# Production Considerations
+# ============================================================================
+#
+# This configuration is for LOCAL DEVELOPMENT ONLY
+# For production:
+#
+# 1. Use strong, random passwords (not "root")
+# 2. Store secrets in Docker secrets or vault
+# 3. Use specific MySQL version (not :8.0, use :8.0.35)
+# 4. Configure proper resource limits (memory, CPU)
+# 5. Set up regular backups
+# 6. Use replicas for high availability
+# 7. Configure SSL/TLS for connections
+# 8. Restrict network access
+# 9. Monitor with Prometheus/Grafana
+# 10. Use managed database service (AWS RDS, Azure Database)
