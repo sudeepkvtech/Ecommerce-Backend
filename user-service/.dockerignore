@@ -1,0 +1,59 @@
+# .dockerignore
+# Excludes files from Docker build context
+# Reduces image size and speeds up builds
+
+# Build output
+target/
+build/
+*.jar
+*.war
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+*~
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Docker files (not needed in image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Test files
+src/test/
+**/test/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Maven wrapper (already in image)
+.mvn/
+mvnw
+mvnw.cmd

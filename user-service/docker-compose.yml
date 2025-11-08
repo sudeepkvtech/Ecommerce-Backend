@@ -1,0 +1,31 @@
+# Docker Compose for User Service
+version: '3.8'
+
+services:
+  # MySQL database for User Service
+  mysql-user-service:
+    image: mysql:8.0
+    container_name: mysql-user-service
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: userdb
+    ports:
+      - "3307:3306" # Different port than Product Service (3306)
+    volumes:
+      - mysql-user-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - user-service-network
+
+volumes:
+  mysql-user-data:
+
+networks:
+  user-service-network:
+    driver: bridge
