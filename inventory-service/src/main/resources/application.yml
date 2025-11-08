@@ -1,0 +1,135 @@
+# Inventory Service Configuration
+# ================================
+#
+# This YAML file configures the Inventory Service application.
+
+# ============================================================================
+# Spring Application Configuration
+# ============================================================================
+spring:
+  # Application name - used for service discovery
+  application:
+    # Eureka uses this to register the service
+    name: inventory-service
+
+  # ============================================================================
+  # Database Configuration (MySQL)
+  # ============================================================================
+  datasource:
+    # JDBC URL - connection string to MySQL database
+    # Port 3310 (unique for Inventory Service)
+    # - Product Service: 3306
+    # - User Service: 3307
+    # - Order Service: 3308
+    # - Payment Service: 3309
+    # - Inventory Service: 3310
+    url: jdbc:mysql://localhost:3310/inventorydb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+
+    # Database credentials
+    username: root
+    password: root
+
+    # MySQL 8.x driver
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ============================================================================
+  # JPA (Java Persistence API) Configuration
+  # ============================================================================
+  jpa:
+    hibernate:
+      # DDL auto mode
+      # update: Creates/updates schema, keeps existing data
+      ddl-auto: update
+
+    # Show SQL queries in console (development)
+    show-sql: true
+
+    properties:
+      hibernate:
+        # Format SQL for readability
+        format_sql: true
+
+        # MySQL 8 dialect
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+server:
+  # Port number for Inventory Service
+  port: 8085
+
+# ============================================================================
+# Eureka Client Configuration (Service Discovery)
+# ============================================================================
+eureka:
+  client:
+    # Register with Eureka Server
+    register-with-eureka: true
+
+    # Fetch registry to discover other services
+    fetch-registry: true
+
+    # Eureka Server URL
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+  instance:
+    # Use IP address instead of hostname
+    prefer-ip-address: true
+
+    # Instance ID with random value for uniqueness
+    instance-id: ${spring.application.name}:${random.value}
+
+# ============================================================================
+# Application-Specific Configuration
+# ============================================================================
+app:
+  # JWT Configuration (shared across all services)
+  jwt:
+    # Secret key for JWT signature verification
+    # MUST be the same across all services
+    secret: mySecretKey123456789012345678901234567890
+
+    # Token expiration (not used in this service)
+    expiration: 86400000
+
+  # Inventory-specific configuration
+  inventory:
+    # Low stock threshold (when to alert)
+    low-stock-threshold: 10
+
+    # Whether to allow negative stock (overselling)
+    allow-negative-stock: false
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  level:
+    # Root logging level
+    root: INFO
+
+    # Inventory Service logging level
+    com.ecommerce.inventoryservice: DEBUG
+
+    # Hibernate SQL logging
+    org.hibernate.SQL: DEBUG
+
+    # Hibernate parameter logging
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# ============================================================================
+# Management and Actuator Configuration
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose actuator endpoints
+        include: "*"
+
+  endpoint:
+    health:
+      # Show detailed health information
+      show-details: always
