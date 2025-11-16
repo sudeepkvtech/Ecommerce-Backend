@@ -1,0 +1,368 @@
+# ============================================================================
+# Order Service Configuration
+# ============================================================================
+#
+# This YAML file configures the Order Service microservice.
+# YAML (YAML Ain't Markup Language) is a human-readable data format
+# used for configuration files.
+#
+# Key features configured here:
+# - Server port and context path
+# - Application name for Eureka registration
+# - Database connection (MySQL)
+# - JPA/Hibernate settings
+# - Eureka client configuration
+# - JWT security settings
+# - Actuator endpoints
+#
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Server Configuration
+# ----------------------------------------------------------------------------
+# Configures the embedded Tomcat server
+server:
+  # Port number where this service listens for HTTP requests
+  # Order Service runs on port 8083
+  # Product Service: 8081, User Service: 8082, Order Service: 8083
+  port: 8083
+
+  servlet:
+    # Context path - prefix for all endpoints
+    # All URLs will start with /order-service
+    # Example: http://localhost:8083/order-service/api/orders
+    #
+    # Why use context path?
+    # - Namespace isolation when multiple services run on same server
+    # - Clear identification of which service handles the request
+    # - Easier routing through API Gateway
+    # - Consistent URL pattern across microservices
+    context-path: /order-service
+
+# ----------------------------------------------------------------------------
+# Spring Application Configuration
+# ----------------------------------------------------------------------------
+spring:
+  # Application name - used for service identification
+  # CRITICAL: This name is used by Eureka for service registration
+  # Other services will discover this service by this name
+  application:
+    name: order-service  # Service name in Eureka
+
+  # ----------------------------------------------------------------------------
+  # Database Configuration
+  # ----------------------------------------------------------------------------
+  # Connection settings for MySQL database
+  datasource:
+    # JDBC URL for MySQL connection
+    # Format: jdbc:mysql://[host]:[port]/[database]?[parameters]
+    #
+    # Components:
+    # - localhost: MySQL server hostname (same machine)
+    # - 3308: MySQL port (different from Product Service 3306, User Service 3307)
+    # - orderdb: Database name for order data
+    # - createDatabaseIfNotExist=true: Auto-create database if missing
+    # - useSSL=false: Disable SSL for local development (enable in production!)
+    # - allowPublicKeyRetrieval=true: Allow authentication with caching_sha2_password
+    url: jdbc:mysql://localhost:3308/orderdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+
+    # Database username
+    # Default MySQL username for local development
+    # In production: Use environment variables or secrets management
+    username: root
+
+    # Database password
+    # Default password for local MySQL
+    # SECURITY WARNING: Never commit real passwords to version control!
+    # In production: Use environment variables: ${DB_PASSWORD}
+    password: root
+
+    # JDBC driver class name
+    # MySQL driver for JDBC connections
+    # This driver is provided by mysql-connector-j dependency
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ----------------------------------------------------------------------------
+  # JPA (Java Persistence API) Configuration
+  # ----------------------------------------------------------------------------
+  # Settings for Hibernate ORM framework
+  jpa:
+    # Hibernate-specific settings
+    hibernate:
+      # DDL (Data Definition Language) auto mode
+      # Options:
+      # - none: Do nothing (manual schema management)
+      # - validate: Validate schema matches entities (no changes)
+      # - update: Update schema to match entities (safe, keeps data)
+      # - create: Drop and recreate schema on startup (LOSES DATA!)
+      # - create-drop: Create on startup, drop on shutdown (for testing)
+      #
+      # We use 'update' for development:
+      # - Automatically adds new tables/columns
+      # - Preserves existing data
+      # - Safe for development
+      #
+      # Production recommendation: Use migration tools like Flyway/Liquibase
+      ddl-auto: update
+
+    # Show SQL queries in console
+    # Helps with debugging and understanding database operations
+    # Each query is logged to console when executed
+    # Example: "select * from orders where id=?"
+    #
+    # Set to false in production (performance and security)
+    show-sql: true
+
+    properties:
+      hibernate:
+        # SQL dialect for MySQL
+        # Tells Hibernate how to generate MySQL-specific SQL
+        # Different databases have different syntax for:
+        # - Data types (VARCHAR vs TEXT)
+        # - Functions (CONCAT vs ||)
+        # - Pagination (LIMIT vs TOP)
+        #
+        # MySQL8Dialect is for MySQL 8.0+
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+        # Format SQL output for readability
+        # Makes logged SQL queries easier to read
+        # Example without format:
+        #   select u.id,u.name from users u where u.id=?
+        # Example with format:
+        #   select
+        #       u.id,
+        #       u.name
+        #   from
+        #       users u
+        #   where
+        #       u.id=?
+        format_sql: true
+
+# ----------------------------------------------------------------------------
+# Eureka Client Configuration
+# ----------------------------------------------------------------------------
+# Settings for service discovery with Eureka Server
+eureka:
+  client:
+    # Enable Eureka client functionality
+    # Set to true to register with Eureka Server
+    # Set to false to disable service discovery (standalone mode)
+    enabled: true
+
+    # Register this service with Eureka
+    # When true:
+    # - Service registers itself with Eureka on startup
+    # - Sends heartbeat every 30 seconds
+    # - Other services can discover this service
+    register-with-eureka: true
+
+    # Fetch registry from Eureka
+    # When true:
+    # - Downloads list of all registered services
+    # - Keeps local cache of service instances
+    # - Used for service-to-service communication
+    # - Refreshed every 30 seconds
+    #
+    # Order Service needs this to:
+    # - Discover User Service (get user details, addresses)
+    # - Discover Product Service (get product details, validate availability)
+    fetch-registry: true
+
+    # Eureka Server URL
+    # Where to find the Eureka Server
+    # Order Service will register here and fetch registry from here
+    service-url:
+      # Default zone URL
+      # Eureka Server typically runs on port 8761
+      # This URL is used for:
+      # - Service registration
+      # - Heartbeat (every 30 seconds)
+      # - Fetching service registry
+      # - Health check updates
+      defaultZone: http://localhost:8761/eureka/
+
+  instance:
+    # Prefer IP address over hostname for registration
+    # When true: Registers as http://192.168.1.100:8083
+    # When false: Registers as http://computer-name:8083
+    #
+    # Benefits of IP address:
+    # - Works better in containerized environments (Docker)
+    # - Avoids DNS issues
+    # - More reliable in cloud deployments
+    prefer-ip-address: true
+
+    # Instance ID format
+    # How this service instance identifies itself to Eureka
+    # Format: ${spring.application.name}:${random.value}
+    # Example: order-service:a1b2c3d4
+    #
+    # Why random value?
+    # - Allows running multiple instances of same service
+    # - Each instance gets unique ID
+    # - Enables horizontal scaling
+    # - Load balancing across instances
+    instance-id: ${spring.application.name}:${random.value}
+
+# ----------------------------------------------------------------------------
+# JWT Configuration
+# ----------------------------------------------------------------------------
+# Settings for JSON Web Token authentication
+jwt:
+  # Secret key for JWT signature verification
+  # MUST match the secret used by User Service to sign tokens
+  # This key is used to verify that tokens are authentic
+  #
+  # SECURITY WARNING:
+  # - This is a demo secret - NEVER use in production!
+  # - Production secrets should be:
+  #   - At least 256 bits (32+ characters)
+  #   - Randomly generated
+  #   - Stored in environment variables or secrets management
+  #   - Rotated periodically
+  #   - Never committed to version control
+  #
+  # How it works:
+  # 1. User Service signs JWT with this secret
+  # 2. User sends JWT to Order Service
+  # 3. Order Service verifies signature with same secret
+  # 4. If signature valid, token is authentic
+  secret: ThisIsAVeryLongSecretKeyForJWTTokenGenerationAndValidation
+
+  # Token expiration time in milliseconds
+  # 86400000 ms = 24 hours
+  # After this time, token is no longer valid
+  #
+  # Note: Order Service doesn't generate tokens
+  # This setting is for reference only
+  # User Service generates tokens with this expiration
+  expiration: 86400000  # 24 hours
+
+  # Token prefix in Authorization header
+  # Standard format: "Bearer <token>"
+  # Example: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  #
+  # Why "Bearer"?
+  # - Part of OAuth 2.0 standard
+  # - Indicates token-based authentication
+  # - Distinguishes from other auth types (Basic, Digest)
+  token-prefix: "Bearer "
+
+  # HTTP header name for JWT token
+  # Standard header for authentication
+  # Client must send token in this header
+  # Example: Authorization: Bearer eyJhbGc...
+  header-name: Authorization
+
+# ----------------------------------------------------------------------------
+# Actuator Configuration
+# ----------------------------------------------------------------------------
+# Spring Boot Actuator provides production-ready features
+# for monitoring and managing the application
+management:
+  endpoints:
+    web:
+      exposure:
+        # Which endpoints to expose over HTTP
+        # health: Application health status
+        # info: Application information
+        #
+        # Other available endpoints (not exposed):
+        # - metrics: Performance metrics
+        # - env: Environment properties
+        # - loggers: Logger configuration
+        # - beans: Spring beans
+        #
+        # Access URLs:
+        # - http://localhost:8083/order-service/actuator/health
+        # - http://localhost:8083/order-service/actuator/info
+        #
+        # Eureka uses /actuator/health for health checks
+        include: health,info
+
+  # Health endpoint configuration
+  endpoint:
+    health:
+      # Show detailed health information
+      # Options:
+      # - never: No details shown
+      # - when-authorized: Show when user authenticated
+      # - always: Always show details (use in development)
+      #
+      # Details include:
+      # - Database connection status
+      # - Disk space
+      # - Eureka client status
+      #
+      # Example response with details:
+      # {
+      #   "status": "UP",
+      #   "components": {
+      #     "db": {"status": "UP", "details": {...}},
+      #     "diskSpace": {"status": "UP", "details": {...}}
+      #   }
+      # }
+      show-details: always
+
+# ----------------------------------------------------------------------------
+# Logging Configuration
+# ----------------------------------------------------------------------------
+# Configure logging levels for different packages
+logging:
+  level:
+    # Root logger level (default for all packages)
+    # Options: TRACE, DEBUG, INFO, WARN, ERROR, OFF
+    # INFO is good for development
+    root: INFO
+
+    # Order Service package logging level
+    # Set to DEBUG to see detailed logs during development
+    # Logs will show:
+    # - Method entry/exit
+    # - Variable values
+    # - Business logic flow
+    # - SQL parameters
+    com.ecommerce.orderservice: DEBUG
+
+    # Hibernate logging
+    # SQL: Show SQL queries (same as show-sql: true)
+    # type.descriptor.sql.BasicBinder: Show SQL parameter values
+    #
+    # Example with BasicBinder:
+    # SQL: select * from orders where id=?
+    # BasicBinder: binding parameter [1] as [BIGINT] - [123]
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# ============================================================================
+# Configuration Summary
+# ============================================================================
+#
+# Service Details:
+# - Name: order-service
+# - Port: 8083
+# - Context: /order-service
+# - Database: MySQL (localhost:3308/orderdb)
+#
+# Eureka Integration:
+# - Server: http://localhost:8761/eureka/
+# - Registration: Enabled
+# - Fetch Registry: Enabled (to discover User & Product services)
+#
+# Security:
+# - JWT authentication
+# - Shared secret with User Service
+# - 24-hour token expiration
+#
+# Monitoring:
+# - Health: /actuator/health
+# - Info: /actuator/info
+#
+# Database:
+# - Auto-create database
+# - Auto-update schema
+# - Show SQL queries
+# - MySQL 8 dialect
+#
+# ============================================================================

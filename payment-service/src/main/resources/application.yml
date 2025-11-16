@@ -1,0 +1,293 @@
+# Payment Service Configuration
+# ==============================
+#
+# This YAML file configures the Payment Service application.
+# YAML (YAML Ain't Markup Language) is a human-readable data serialization format.
+#
+# Key concepts:
+# - Indentation matters (use spaces, not tabs)
+# - Key-value pairs: key: value
+# - Nested properties use indentation
+# - Lists use dash (-)
+# - Comments start with #
+
+# ============================================================================
+# Spring Application Configuration
+# ============================================================================
+spring:
+  # Application name - used for service discovery
+  # This is how other services will find this service in Eureka
+  application:
+    # Service name must be lowercase and hyphenated
+    # Eureka uses this to register the service
+    # Other services use this name to call this service
+    # Example: http://payment-service/api/payments
+    name: payment-service
+
+  # ============================================================================
+  # Database Configuration (MySQL)
+  # ============================================================================
+  datasource:
+    # JDBC URL - connection string to MySQL database
+    # Format: jdbc:mysql://[host]:[port]/[database]?[parameters]
+    #
+    # Components:
+    # - jdbc:mysql:// - JDBC driver protocol
+    # - localhost - database host (same machine for development)
+    # - 3309 - MySQL port (unique for Payment Service)
+    #   * Product Service: 3306
+    #   * User Service: 3307
+    #   * Order Service: 3308
+    #   * Payment Service: 3309
+    # - paymentdb - database name
+    # - useSSL=false - disable SSL for local development
+    # - allowPublicKeyRetrieval=true - allows secure connection
+    # - serverTimezone=UTC - set timezone to UTC
+    url: jdbc:mysql://localhost:3309/paymentdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+
+    # Database username
+    # For production, use environment variables: ${DB_USERNAME}
+    username: root
+
+    # Database password
+    # For production, use environment variables: ${DB_PASSWORD}
+    # Should be encrypted in production using Spring Cloud Config or Vault
+    password: root
+
+    # Database driver class name
+    # MySQL 8.x uses com.mysql.cj.jdbc.Driver
+    # Older MySQL versions used com.mysql.jdbc.Driver (deprecated)
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ============================================================================
+  # JPA (Java Persistence API) Configuration
+  # ============================================================================
+  jpa:
+    # Hibernate configuration
+    # Hibernate is the JPA implementation used by Spring Data JPA
+    hibernate:
+      # DDL (Data Definition Language) auto mode
+      # Options:
+      # - none: Do nothing (production)
+      # - validate: Validate schema, make no changes
+      # - update: Update schema if needed (development)
+      # - create: Create schema, destroy previous data
+      # - create-drop: Create schema, drop on shutdown (testing)
+      #
+      # Using 'update' for development:
+      # - Creates tables if they don't exist
+      # - Adds new columns if entity changes
+      # - Does NOT remove columns or tables
+      # - Safe for development, keeps existing data
+      #
+      # For production, use 'validate' or 'none' and use migration tools (Flyway/Liquibase)
+      ddl-auto: update
+
+    # Show SQL queries in console
+    # Helpful for development and debugging
+    # Shows the actual SQL that Hibernate generates
+    # For production, set to false
+    show-sql: true
+
+    # Additional properties for Hibernate
+    properties:
+      hibernate:
+        # Format SQL queries for readability
+        # Makes multi-line, indented SQL in console
+        # Without this, SQL is a single long line
+        format_sql: true
+
+        # SQL dialect for MySQL 8
+        # Tells Hibernate which SQL variant to use
+        # Different databases have different SQL syntax
+        # MySQL 8 has specific features and optimizations
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+# ============================================================================
+# Server Configuration
+# ============================================================================
+server:
+  # Port number for this service
+  # Each microservice runs on a different port
+  # Port allocation:
+  # - 8081: Product Service
+  # - 8082: User Service
+  # - 8083: Order Service
+  # - 8084: Payment Service
+  # - 8761: Eureka Server
+  port: 8084
+
+# ============================================================================
+# Eureka Client Configuration (Service Discovery)
+# ============================================================================
+eureka:
+  client:
+    # Register this service with Eureka Server
+    # When true, service registers itself on startup
+    # When false, service runs standalone (no discovery)
+    register-with-eureka: true
+
+    # Fetch registry from Eureka Server
+    # When true, downloads list of all registered services
+    # Needed to discover and call other services
+    # When false, cannot discover other services
+    fetch-registry: true
+
+    # Eureka Server URL
+    # Where to register and fetch service registry
+    # defaultZone is the default property name (must be exact)
+    service-url:
+      # URL must end with /eureka/ (including trailing slash)
+      # http://localhost:8761/eureka/ is the default Eureka Server location
+      defaultZone: http://localhost:8761/eureka/
+
+  instance:
+    # Prefer IP address over hostname
+    # When true, registers with IP (e.g., 192.168.1.100)
+    # When false, registers with hostname (e.g., localhost)
+    # IP is more reliable in Docker and cloud environments
+    prefer-ip-address: true
+
+    # Instance ID format
+    # How this instance is identified in Eureka
+    # Format: ${spring.application.name}:${random.value}
+    # Example: payment-service:a1b2c3d4
+    # Random value ensures uniqueness if multiple instances run
+    instance-id: ${spring.application.name}:${random.value}
+
+# ============================================================================
+# Application-Specific Configuration
+# ============================================================================
+app:
+  # JWT Configuration
+  # Used for validating JWT tokens from User Service
+  # All services must use the SAME secret to validate tokens
+  jwt:
+    # Secret key for JWT signature verification
+    # MUST be the same across all services (User, Order, Payment)
+    # In production:
+    # - Use strong random secret (64+ characters)
+    # - Store in environment variable or secret manager
+    # - Rotate periodically
+    # - Never commit to Git
+    #
+    # Current secret: "mySecretKey123456789012345678901234567890"
+    # This is 46 characters (HMAC-SHA256 requires minimum 256 bits / 32 bytes)
+    secret: mySecretKey123456789012345678901234567890
+
+    # Token expiration time (not used in this service)
+    # Only User Service generates tokens
+    # Payment Service only validates tokens
+    # Including this for consistency across services
+    # Value in milliseconds: 86400000 ms = 24 hours
+    expiration: 86400000
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  level:
+    # Root logging level (all packages)
+    # Options: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, OFF
+    # INFO is good for production (shows important events)
+    root: INFO
+
+    # Payment Service logging level
+    # Set to DEBUG to see detailed logs from this service
+    # Helpful for debugging business logic
+    com.ecommerce.paymentservice: DEBUG
+
+    # Hibernate SQL logging
+    # Shows generated SQL queries (same as show-sql but more control)
+    org.hibernate.SQL: DEBUG
+
+    # Hibernate parameter logging
+    # Shows values of ? parameters in SQL queries
+    # Example: SELECT * FROM payments WHERE id = ? [1]
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# ============================================================================
+# Management and Actuator Configuration
+# ============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose actuator endpoints
+        # health: /actuator/health (health check)
+        # info: /actuator/info (application info)
+        # For production, limit exposed endpoints for security
+        # Can use: include: "health,info" to expose only specific endpoints
+        include: "*"
+
+  endpoint:
+    health:
+      # Show detailed health information
+      # Options:
+      # - never: Only show UP/DOWN status
+      # - when-authorized: Show details if authenticated
+      # - always: Always show details (development only)
+      show-details: always
+
+# ============================================================================
+# Configuration Notes
+# ============================================================================
+#
+# Environment-Specific Configuration:
+# -----------------------------------
+# For different environments (dev, staging, production), create separate files:
+# - application.yml (default)
+# - application-dev.yml (development)
+# - application-prod.yml (production)
+#
+# Activate profile:
+# - IDE: Set spring.profiles.active=prod
+# - Command line: java -jar payment-service.jar --spring.profiles.active=prod
+# - Environment variable: export SPRING_PROFILES_ACTIVE=prod
+#
+# Production Best Practices:
+# ---------------------------
+# 1. Database:
+#    - Use environment variables for credentials
+#    - Enable SSL: useSSL=true
+#    - Use connection pooling (HikariCP - default in Spring Boot)
+#
+# 2. Security:
+#    - Store JWT secret in environment variable or vault
+#    - Use strong random secret (64+ characters)
+#    - Rotate secrets periodically
+#
+# 3. Logging:
+#    - Set root level to WARN or ERROR
+#    - Use centralized logging (ELK stack, Splunk)
+#    - Don't log sensitive data (passwords, credit cards)
+#
+# 4. Eureka:
+#    - Use actual Eureka Server URL (not localhost)
+#    - Enable security on Eureka Server
+#    - Configure retry and timeout settings
+#
+# 5. JPA:
+#    - Set ddl-auto to validate or none
+#    - Use database migration tools (Flyway, Liquibase)
+#    - Disable show-sql
+#
+# 6. Actuator:
+#    - Limit exposed endpoints
+#    - Secure endpoints with authentication
+#    - Use dedicated management port
+#
+# Docker Configuration:
+# ---------------------
+# When running in Docker, update:
+# - Database host: localhost → mysql-payment-service
+# - Eureka URL: localhost → eureka-server
+# - Use Docker network names instead of localhost
+#
+# Example Docker configuration:
+# datasource:
+#   url: jdbc:mysql://mysql-payment-service:3306/paymentdb?...
+# eureka:
+#   client:
+#     service-url:
+#       defaultZone: http://eureka-server:8761/eureka/

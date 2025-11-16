@@ -1,0 +1,578 @@
+package com.ecommerce.paymentservice.entity;
+
+// Import JPA annotations
+import jakarta.persistence.*;
+
+// Import Lombok annotations
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+// Import BigDecimal for monetary values
+import java.math.BigDecimal;
+
+// Import time classes
+import java.time.LocalDateTime;
+
+/**
+ * Payment Entity
+ *
+ * Represents a payment transaction in the e-commerce system.
+ * Maps to the 'payments' table in the database.
+ *
+ * What is a Payment?
+ * ==================
+ * A payment is a financial transaction where a customer pays for an order.
+ * It records:
+ * - Who paid (userId)
+ * - What order they paid for (orderId)
+ * - How much they paid (amount)
+ * - How they paid (paymentMethod)
+ * - Payment status (status)
+ * - Transaction details (transactionId, etc.)
+ *
+ * Relationship with Other Services
+ * =================================
+ * - Order Service:
+ *   - One Order → One Payment (in this implementation)
+ *   - Order Service creates payment request
+ *   - Payment Service processes and returns result
+ *   - Order status updated based on payment status
+ *
+ * - User Service:
+ *   - Each payment belongs to a user
+ *   - User can view their payment history
+ *
+ * Database Table: payments
+ * ========================
+ * Columns created by this entity:
+ * - id: BIGINT PRIMARY KEY AUTO_INCREMENT
+ * - order_id: BIGINT NOT NULL
+ * - user_id: BIGINT NOT NULL
+ * - amount: DECIMAL(19,2) NOT NULL
+ * - payment_method: VARCHAR(255) NOT NULL
+ * - status: VARCHAR(255) NOT NULL
+ * - transaction_id: VARCHAR(255)
+ * - failure_reason: TEXT
+ * - created_at: DATETIME NOT NULL
+ * - updated_at: DATETIME NOT NULL
+ *
+ * Indexes for Performance
+ * =======================
+ * - idx_order_id: Fast lookup by order ID
+ * - idx_user_id: Fast lookup of user's payment history
+ * - idx_status: Fast filtering by payment status
+ * - idx_transaction_id: Fast lookup by transaction ID
+ *
+ * JPA Annotations Explained:
+ * ==========================
+ *
+ * @Entity:
+ * - Marks this class as a JPA entity (database table)
+ * - JPA will create/manage the 'payments' table
+ *
+ * @Table:
+ * - Specifies table name and indexes
+ * - indexes = @Index: Creates database indexes for faster queries
+ *
+ * @Id:
+ * - Marks field as primary key
+ *
+ * @GeneratedValue:
+ * - Database auto-generates value
+ * - IDENTITY strategy: Uses AUTO_INCREMENT
+ *
+ * @Column:
+ * - Configures column properties
+ * - nullable = false: NOT NULL constraint
+ * - precision/scale: For DECIMAL(19,2)
+ *
+ * @Enumerated:
+ * - How to store enum in database
+ * - EnumType.STRING: Store as VARCHAR ("CREDIT_CARD", "PENDING")
+ * - EnumType.ORDINAL: Store as INT (0, 1, 2) - NOT recommended
+ *
+ * @PrePersist:
+ * - Method called before INSERT
+ * - Sets createdAt and updatedAt
+ *
+ * @PreUpdate:
+ * - Method called before UPDATE
+ * - Updates updatedAt
+ *
+ * Lombok Annotations:
+ * ===================
+ *
+ * @Data:
+ * - Generates getters for all fields
+ * - Generates setters for all non-final fields
+ * - Generates toString()
+ * - Generates equals() and hashCode()
+ * - Reduces boilerplate code
+ *
+ * @NoArgsConstructor:
+ * - Generates no-argument constructor
+ * - Required by JPA for entity instantiation
+ *
+ * @AllArgsConstructor:
+ * - Generates constructor with all fields
+ * - Useful for testing
+ *
+ * @Builder:
+ * - Implements builder pattern
+ * - Allows clean object creation:
+ *   Payment payment = Payment.builder()
+ *       .orderId(123L)
+ *       .userId(456L)
+ *       .amount(new BigDecimal("99.99"))
+ *       .paymentMethod(PaymentMethod.CREDIT_CARD)
+ *       .status(PaymentStatus.PENDING)
+ *       .build();
+ */
+
+// @Entity marks this as a JPA entity (database table)
+@Entity
+
+// @Table specifies table name and indexes
+@Table(
+    name = "payments",  // Table name in database
+    indexes = {
+        // Index on order_id for fast lookup: SELECT * FROM payments WHERE order_id = ?
+        @Index(name = "idx_order_id", columnList = "order_id"),
+
+        // Index on user_id for fast lookup: SELECT * FROM payments WHERE user_id = ?
+        @Index(name = "idx_user_id", columnList = "user_id"),
+
+        // Index on status for fast filtering: SELECT * FROM payments WHERE status = ?
+        @Index(name = "idx_status", columnList = "status"),
+
+        // Index on transaction_id for fast lookup: SELECT * FROM payments WHERE transaction_id = ?
+        @Index(name = "idx_transaction_id", columnList = "transaction_id")
+    }
+)
+
+// Lombok annotations for boilerplate reduction
+@Data                // Getters, setters, toString, equals, hashCode
+@NoArgsConstructor   // No-argument constructor (required by JPA)
+@AllArgsConstructor  // Constructor with all fields
+@Builder             // Builder pattern
+public class Payment {
+
+    /**
+     * Payment ID
+     *
+     * Primary key, auto-generated by database.
+     * Unique identifier for each payment transaction.
+     *
+     * Database column: id BIGINT PRIMARY KEY AUTO_INCREMENT
+     *
+     * Example: 1, 2, 3, ...
+     */
+    @Id  // Primary key
+    @GeneratedValue(strategy = GenerationType.IDENTITY)  // Auto-increment
+    private Long id;
+
+    /**
+     * Order ID
+     *
+     * Reference to the order being paid for.
+     * Links payment to Order in Order Service.
+     *
+     * Relationship:
+     * - One Order → One Payment (in this implementation)
+     * - Order Service creates order and requests payment
+     * - Payment Service processes payment for that order
+     *
+     * Note: This is not a foreign key in database (microservices pattern)
+     * - Order exists in Order Service's database
+     * - Payment exists in Payment Service's database
+     * - They reference each other by ID, not database FK
+     * - This allows services to be deployed independently
+     *
+     * Why no @ManyToOne or foreign key?
+     * - Microservices should not share databases
+     * - Each service has its own database
+     * - Services communicate via APIs, not database joins
+     * - This enables independent scaling and deployment
+     *
+     * Database column: order_id BIGINT NOT NULL
+     *
+     * Example: 123 (refers to order with ID 123 in Order Service)
+     *
+     * Usage in service:
+     * // Get payment for an order
+     * Payment payment = paymentRepository.findByOrderId(123L);
+     */
+    @Column(nullable = false)  // Cannot be null
+    private Long orderId;
+
+    /**
+     * User ID
+     *
+     * Reference to the user who made the payment.
+     * Links payment to User in User Service.
+     *
+     * Why store userId?
+     * - Show payment history to user
+     * - Fraud detection (unusual patterns)
+     * - Refund processing
+     * - Analytics and reporting
+     *
+     * Note: Same as orderId, this is not a foreign key
+     * - User exists in User Service's database
+     * - Payment exists in Payment Service's database
+     *
+     * Database column: user_id BIGINT NOT NULL
+     *
+     * Example: 456 (refers to user with ID 456 in User Service)
+     *
+     * Usage in service:
+     * // Get all payments by a user
+     * List<Payment> userPayments = paymentRepository.findByUserId(456L);
+     */
+    @Column(nullable = false)  // Cannot be null
+    private Long userId;
+
+    /**
+     * Amount
+     *
+     * Total payment amount in the base currency (e.g., USD).
+     *
+     * Why BigDecimal?
+     * - Exact precision for monetary values
+     * - No floating-point errors (unlike double)
+     * - Example: 0.1 + 0.2 = 0.30000000000000004 with double
+     * - Example: 0.1 + 0.2 = 0.3 with BigDecimal
+     *
+     * Database column: amount DECIMAL(19,2)
+     * - 19 digits total
+     * - 2 digits after decimal point
+     * - Range: -99,999,999,999,999,999.99 to 99,999,999,999,999,999.99
+     * - Supports transactions up to ~99 quadrillion
+     *
+     * Always positive for payments (negative for refunds could be separate entity)
+     *
+     * Validation:
+     * - Must be greater than 0
+     * - Should match order total from Order Service
+     *
+     * Example: 99.99 (represents $99.99)
+     *
+     * Usage in service:
+     * BigDecimal amount = new BigDecimal("99.99");
+     * payment.setAmount(amount);
+     *
+     * // Compare amounts
+     * if (payment.getAmount().compareTo(order.getTotalAmount()) != 0) {
+     *     throw new BadRequestException("Payment amount does not match order total");
+     * }
+     */
+    @Column(nullable = false, precision = 19, scale = 2)  // DECIMAL(19,2)
+    private BigDecimal amount;
+
+    /**
+     * Payment Method
+     *
+     * How the customer paid (credit card, PayPal, etc.)
+     *
+     * Stored as enum for type safety.
+     * Database stores as VARCHAR.
+     *
+     * Database column: payment_method VARCHAR(255) NOT NULL
+     * Values: "CREDIT_CARD", "DEBIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH_ON_DELIVERY"
+     *
+     * Why @Enumerated(EnumType.STRING)?
+     * - Readable in database
+     * - Can add/remove enum values safely
+     * - Self-documenting database records
+     *
+     * Example: PaymentMethod.CREDIT_CARD
+     * Stored in database as: "CREDIT_CARD"
+     *
+     * Usage:
+     * payment.setPaymentMethod(PaymentMethod.CREDIT_CARD);
+     */
+    @Enumerated(EnumType.STRING)  // Store enum as string
+    @Column(nullable = false)     // Cannot be null
+    private PaymentMethod paymentMethod;
+
+    /**
+     * Status
+     *
+     * Current status of the payment transaction.
+     *
+     * Lifecycle: PENDING → PROCESSING → COMPLETED
+     * Failed flow: PENDING → PROCESSING → FAILED
+     * Refund flow: COMPLETED → REFUNDED
+     *
+     * Database column: status VARCHAR(255) NOT NULL
+     * Values: "PENDING", "PROCESSING", "COMPLETED", "FAILED", "REFUNDED"
+     *
+     * Usage:
+     * payment.setStatus(PaymentStatus.PENDING);
+     *
+     * Status transitions:
+     * if (payment.getStatus() == PaymentStatus.PENDING) {
+     *     payment.setStatus(PaymentStatus.PROCESSING);
+     *     processPaymentGateway(payment);
+     * }
+     */
+    @Enumerated(EnumType.STRING)  // Store enum as string
+    @Column(nullable = false)     // Cannot be null
+    private PaymentStatus status;
+
+    /**
+     * Transaction ID
+     *
+     * Unique identifier from payment gateway.
+     * Used for tracking, refunds, and reconciliation.
+     *
+     * Format depends on payment gateway:
+     * - Stripe: "ch_1234567890abcdefghijklmn"
+     * - PayPal: "PAY-1234567890ABCDEFGHIJKLMN"
+     * - Square: "sq_1234567890abcdef"
+     *
+     * Null when:
+     * - Payment is PENDING (not yet processed)
+     * - Payment is PROCESSING (gateway call in progress)
+     * - Payment FAILED (no transaction created)
+     * - Cash on Delivery (no gateway transaction)
+     *
+     * Non-null when:
+     * - Payment COMPLETED (gateway returned transaction ID)
+     * - Payment REFUNDED (original transaction ID preserved)
+     *
+     * Database column: transaction_id VARCHAR(255) NULL
+     *
+     * Usage:
+     * // Process payment with Stripe
+     * Charge charge = stripe.charges.create(params);
+     * payment.setTransactionId(charge.getId());  // "ch_1234..."
+     * payment.setStatus(PaymentStatus.COMPLETED);
+     *
+     * // Process refund
+     * Refund refund = stripe.refunds.create(payment.getTransactionId());
+     * payment.setStatus(PaymentStatus.REFUNDED);
+     *
+     * Importance:
+     * - Essential for refunds
+     * - Required for dispute resolution
+     * - Needed for financial reconciliation
+     * - Audit trail for accounting
+     */
+    @Column(name = "transaction_id")  // Nullable (null until payment processed)
+    private String transactionId;
+
+    /**
+     * Failure Reason
+     *
+     * Explanation why payment failed (if status is FAILED).
+     *
+     * Common failure reasons:
+     * - "Card declined by issuing bank"
+     * - "Insufficient funds"
+     * - "Invalid card number"
+     * - "Incorrect CVV"
+     * - "Card expired"
+     * - "Payment gateway timeout"
+     * - "Fraud check failed"
+     * - "3D Secure authentication failed"
+     *
+     * Null when:
+     * - Payment not failed (PENDING, PROCESSING, COMPLETED, REFUNDED)
+     *
+     * Non-null when:
+     * - Payment FAILED
+     *
+     * Database column: failure_reason TEXT NULL
+     * - TEXT type allows long error messages
+     * - Can store detailed gateway error responses
+     *
+     * Usage:
+     * try {
+     *     Charge charge = stripe.charges.create(params);
+     *     payment.setStatus(PaymentStatus.COMPLETED);
+     *     payment.setTransactionId(charge.getId());
+     * } catch (CardException e) {
+     *     payment.setStatus(PaymentStatus.FAILED);
+     *     payment.setFailureReason(e.getMessage());
+     *     // e.getMessage() could be "Your card was declined"
+     * }
+     *
+     * Customer-facing message:
+     * - Don't show technical details to customer
+     * - Translate to user-friendly message
+     * - Example: "card_declined" → "Your card was declined. Please try another card."
+     *
+     * Analytics:
+     * - Track common failure reasons
+     * - Identify problematic cards/banks
+     * - Optimize checkout flow
+     * - Reduce payment failures
+     */
+    @Column(name = "failure_reason", columnDefinition = "TEXT")  // TEXT for long messages
+    private String failureReason;
+
+    /**
+     * Created At
+     *
+     * When this payment record was created.
+     * Set automatically on first save.
+     *
+     * Database column: created_at DATETIME NOT NULL
+     *
+     * Example: 2024-01-15T10:30:00
+     *
+     * Uses:
+     * - Audit trail
+     * - Payment history sorting
+     * - Analytics (payments per day/month)
+     * - Reconciliation
+     *
+     * Set by @PrePersist method (before INSERT)
+     */
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    /**
+     * Updated At
+     *
+     * When this payment record was last modified.
+     * Updated automatically on every save.
+     *
+     * Database column: updated_at DATETIME NOT NULL
+     *
+     * Example: 2024-01-15T10:30:15
+     *
+     * Uses:
+     * - Track status changes
+     * - Audit trail
+     * - Debugging (when did status change?)
+     *
+     * Set by @PrePersist (on INSERT) and @PreUpdate (on UPDATE)
+     */
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    /**
+     * Pre-Persist Callback
+     *
+     * Called automatically by JPA before INSERT.
+     * Sets createdAt and updatedAt to current time.
+     *
+     * When this runs:
+     * - paymentRepository.save(payment) is called for new entity
+     * - Before INSERT query is executed
+     * - After validation passes
+     *
+     * Why not set in constructor?
+     * - Timestamps should reflect database operation time
+     * - Constructor may be called long before save
+     * - @PrePersist ensures accurate timestamps
+     */
+    @PrePersist
+    protected void onCreate() {
+        // Get current date and time
+        LocalDateTime now = LocalDateTime.now();
+
+        // Set both timestamps to now
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    /**
+     * Pre-Update Callback
+     *
+     * Called automatically by JPA before UPDATE.
+     * Updates the updatedAt timestamp to current time.
+     *
+     * When this runs:
+     * - paymentRepository.save(payment) is called for existing entity
+     * - Before UPDATE query is executed
+     * - After validation passes
+     *
+     * Example:
+     * // Fetch payment
+     * Payment payment = paymentRepository.findById(1L).get();
+     *
+     * // Modify status
+     * payment.setStatus(PaymentStatus.COMPLETED);
+     *
+     * // Save - triggers @PreUpdate
+     * paymentRepository.save(payment);
+     *
+     * // updatedAt is now current time
+     */
+    @PreUpdate
+    protected void onUpdate() {
+        // Update timestamp to current time
+        updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Business Logic Methods
+     * =======================
+     *
+     * Could add helper methods here:
+     */
+
+    /**
+     * Check if payment is successful
+     *
+     * @return true if COMPLETED, false otherwise
+     */
+    // public boolean isSuccessful() {
+    //     return status == PaymentStatus.COMPLETED;
+    // }
+
+    /**
+     * Check if payment failed
+     *
+     * @return true if FAILED, false otherwise
+     */
+    // public boolean isFailed() {
+    //     return status == PaymentStatus.FAILED;
+    // }
+
+    /**
+     * Check if payment can be refunded
+     *
+     * @return true if COMPLETED and not already REFUNDED
+     */
+    // public boolean canBeRefunded() {
+    //     return status == PaymentStatus.COMPLETED;
+    // }
+
+    /**
+     * Mark payment as completed
+     *
+     * @param transactionId Transaction ID from payment gateway
+     */
+    // public void markAsCompleted(String transactionId) {
+    //     this.status = PaymentStatus.COMPLETED;
+    //     this.transactionId = transactionId;
+    //     this.failureReason = null;  // Clear any previous failure
+    // }
+
+    /**
+     * Mark payment as failed
+     *
+     * @param reason Failure reason from payment gateway
+     */
+    // public void markAsFailed(String reason) {
+    //     this.status = PaymentStatus.FAILED;
+    //     this.failureReason = reason;
+    //     this.transactionId = null;  // No transaction if failed
+    // }
+
+    /**
+     * Mark payment as refunded
+     */
+    // public void markAsRefunded() {
+    //     if (!canBeRefunded()) {
+    //         throw new BadRequestException("Payment cannot be refunded");
+    //     }
+    //     this.status = PaymentStatus.REFUNDED;
+    // }
+}

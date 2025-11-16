@@ -1,0 +1,258 @@
+# ============================================================================
+# Docker Compose Configuration for Order Service
+# ============================================================================
+#
+# This file defines the services needed to run Order Service:
+# 1. MySQL database (for order data storage)
+# 2. Order Service application (Spring Boot)
+#
+# Usage:
+# - Start services: docker-compose up -d
+# - Stop services: docker-compose down
+# - View logs: docker-compose logs -f
+# - Rebuild: docker-compose up -d --build
+#
+# ============================================================================
+
+# Docker Compose file version
+# Version 3.8 supports most features needed for microservices
+version: '3.8'
+
+# ============================================================================
+# Services Definition
+# ============================================================================
+services:
+
+  # ==========================================================================
+  # MySQL Database Service
+  # ==========================================================================
+  # Database for storing order and order item data
+  mysql-order-service:
+    # Docker image to use
+    # mysql:8.0 is the official MySQL image
+    # Using specific version (8.0) ensures consistency
+    image: mysql:8.0
+
+    # Container name
+    # Easier to identify and manage than random names
+    container_name: mysql-order-service
+
+    # Port mapping
+    # Format: HOST_PORT:CONTAINER_PORT
+    # Maps port 3308 on host to port 3306 in container
+    # Why 3308? To avoid conflicts with:
+    # - Product Service MySQL (3306)
+    # - User Service MySQL (3307)
+    # - Each service has its own database instance
+    ports:
+      - "3308:3306"
+
+    # Environment variables
+    # Configure MySQL database
+    environment:
+      # Root password for MySQL
+      # SECURITY WARNING: Change in production!
+      # Use Docker secrets or environment variables
+      MYSQL_ROOT_PASSWORD: root
+
+      # Database to create on startup
+      # Order Service will use this database
+      MYSQL_DATABASE: orderdb
+
+      # Optional: Create a non-root user
+      # MYSQL_USER: orderuser
+      # MYSQL_PASSWORD: orderpass
+
+    # Volume for data persistence
+    # Without volume, data is lost when container stops
+    volumes:
+      # Named volume: mysql-order-data
+      # Maps to /var/lib/mysql inside container (MySQL data directory)
+      # Data persists even if container is removed
+      - mysql-order-data:/var/lib/mysql
+
+    # Health check
+    # Ensures MySQL is ready before starting dependent services
+    healthcheck:
+      # Command to check if MySQL is ready
+      # mysqladmin ping: Simple command to test MySQL connectivity
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+
+      # How often to run health check (every 10 seconds)
+      interval: 10s
+
+      # How long to wait for check to complete (5 seconds)
+      timeout: 5s
+
+      # How many consecutive failures before marking unhealthy (3 times)
+      retries: 3
+
+      # Wait before first health check (30 seconds)
+      # Gives MySQL time to initialize on first start
+      start_period: 30s
+
+    # Network
+    # Connects to custom network for inter-service communication
+    networks:
+      - order-service-network
+
+  # ==========================================================================
+  # Order Service Application
+  # ==========================================================================
+  # Spring Boot application
+  order-service:
+    # Build configuration
+    # Instead of using pre-built image, build from Dockerfile
+    build:
+      # Build context (directory containing Dockerfile)
+      context: .
+
+      # Dockerfile to use (default: Dockerfile in context)
+      dockerfile: Dockerfile
+
+    # Container name
+    container_name: order-service-app
+
+    # Port mapping
+    # Maps port 8083 on host to port 8083 in container
+    # Order Service listens on 8083
+    ports:
+      - "8083:8083"
+
+    # Environment variables
+    # Override application.yml settings
+    # Useful for Docker-specific configuration
+    environment:
+      # Database connection
+      # Note: Use service name 'mysql-order-service' as hostname
+      # Docker Compose provides DNS resolution between services
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-order-service:3306/orderdb?createDatabaseIfNotExist=true&useSSL=false
+
+      # Database credentials
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+
+      # Eureka Server URL
+      # If Eureka is running on host machine (not in Docker):
+      # Use host.docker.internal instead of localhost
+      # host.docker.internal resolves to host machine IP from inside container
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://host.docker.internal:8761/eureka/
+
+      # If Eureka is also in Docker, use service name:
+      # EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+
+      # JWT secret (must match User Service)
+      # This should be same across all services
+      JWT_SECRET: ThisIsAVeryLongSecretKeyForJWTTokenGenerationAndValidation
+
+      # Logging level (optional)
+      # Set to DEBUG for more detailed logs
+      LOGGING_LEVEL_COM_ECOMMERCE_ORDERSERVICE: INFO
+
+    # Dependencies
+    # Defines service startup order
+    depends_on:
+      mysql-order-service:
+        # Wait for MySQL health check to pass before starting
+        # Ensures database is ready before application starts
+        condition: service_healthy
+
+    # Restart policy
+    # Automatically restart container if it crashes
+    # unless-stopped: Restart always unless manually stopped
+    # Other options:
+    # - no: Never restart
+    # - always: Always restart
+    # - on-failure: Restart only if container exits with error
+    restart: unless-stopped
+
+    # Health check
+    # Ensures Order Service is ready
+    healthcheck:
+      # Check actuator health endpoint
+      # wget: Download health endpoint
+      # -q: Quiet mode (no output)
+      # --spider: Don't download, just check if exists
+      # || exit 1: Exit with error if wget fails
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/order-service/actuator/health"]
+
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Wait 60s for application to start
+
+    # Network
+    networks:
+      - order-service-network
+
+# ============================================================================
+# Networks Definition
+# ============================================================================
+# Custom bridge network for service communication
+networks:
+  order-service-network:
+    # Bridge driver: Default network type for standalone containers
+    # Allows containers to communicate using service names as hostnames
+    driver: bridge
+
+# ============================================================================
+# Volumes Definition
+# ============================================================================
+# Named volumes for data persistence
+volumes:
+  # MySQL data volume
+  # Persists database data across container restarts
+  mysql-order-data:
+    driver: local
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Start all services:
+# docker-compose up -d
+#
+# Start with build:
+# docker-compose up -d --build
+#
+# View logs:
+# docker-compose logs -f
+# docker-compose logs -f order-service
+# docker-compose logs -f mysql-order-service
+#
+# Stop services:
+# docker-compose down
+#
+# Stop and remove volumes (WARNING: Deletes data!):
+# docker-compose down -v
+#
+# Restart a service:
+# docker-compose restart order-service
+#
+# Execute command in container:
+# docker-compose exec order-service sh
+# docker-compose exec mysql-order-service mysql -uroot -proot
+#
+# ============================================================================
+# Troubleshooting
+# ============================================================================
+#
+# 1. Order Service can't connect to MySQL:
+#    - Check MySQL health: docker-compose ps
+#    - Check MySQL logs: docker-compose logs mysql-order-service
+#    - Verify DATABASE_URL uses service name: mysql-order-service
+#
+# 2. Order Service can't register with Eureka:
+#    - Verify Eureka is running: curl http://localhost:8761
+#    - Check EUREKA_CLIENT_SERVICEURL_DEFAULTZONE setting
+#    - Use host.docker.internal if Eureka on host machine
+#
+# 3. Port already in use:
+#    - Change port mapping: "8084:8083" (use port 8084 on host)
+#    - Stop conflicting service: docker ps, docker stop <container>
+#
+# 4. Permission denied:
+#    - Run with sudo: sudo docker-compose up -d
+#    - Or add user to docker group: sudo usermod -aG docker $USER
+#
+# ============================================================================

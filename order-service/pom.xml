@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Maven Project Object Model (POM) for Order Service
+
+    This file defines the project structure, dependencies, and build configuration
+    for the Order Service microservice.
+
+    What is Maven?
+    - Build automation and dependency management tool
+    - Downloads required libraries automatically
+    - Manages project lifecycle (compile, test, package, deploy)
+    - Uses XML configuration (this file)
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!-- POM model version (always 4.0.0 for Maven 2+) -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Parent POM: Spring Boot Starter Parent
+
+        Provides:
+        - Dependency management (versions for common dependencies)
+        - Plugin configuration
+        - Default settings for Spring Boot projects
+        - Java version configuration
+
+        Benefits:
+        - No need to specify versions for most Spring dependencies
+        - Consistent dependency versions that work well together
+        - Pre-configured Maven plugins
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+        <!-- relativePath empty means Maven will look in repository, not parent folder -->
+        <relativePath/>
+    </parent>
+
+    <!--
+        Project Coordinates (GAV)
+        - groupId: Organization/company identifier (reverse domain)
+        - artifactId: Project name (unique within groupId)
+        - version: Project version (SNAPSHOT = in development)
+    -->
+    <groupId>com.ecommerce</groupId>
+    <artifactId>order-service</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>order-service</name>
+    <description>Order Service for E-commerce Application - Handles order management and order items</description>
+
+    <!--
+        Properties
+        Define reusable values and configuration settings
+    -->
+    <properties>
+        <!-- Java version for compilation and runtime -->
+        <!-- Java 17 is LTS (Long Term Support) version -->
+        <java.version>17</java.version>
+
+        <!--
+            Spring Cloud version
+            Must be compatible with Spring Boot version
+            2023.0.0 is compatible with Spring Boot 3.2.0
+        -->
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
+    </properties>
+
+    <!--
+        Dependencies
+        Libraries that this project needs
+        Maven automatically downloads these from Maven Central repository
+    -->
+    <dependencies>
+
+        <!--
+            Spring Boot Starter Web
+
+            Provides:
+            - Embedded Tomcat server (no need for external server)
+            - Spring MVC for REST APIs
+            - Jackson for JSON serialization/deserialization
+            - Validation framework
+
+            Use case:
+            - Building REST APIs
+            - Handling HTTP requests/responses
+            - Creating @RestController classes
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--
+            Spring Boot Starter Data JPA
+
+            Provides:
+            - JPA (Java Persistence API) implementation via Hibernate
+            - Repository pattern support
+            - Transaction management
+            - Database abstraction layer
+
+            Use case:
+            - Database operations (CRUD)
+            - Entity mapping (Java objects ↔ database tables)
+            - Custom queries with @Query
+            - Automatic query generation from method names
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!--
+            Spring Boot Starter Validation
+
+            Provides:
+            - JSR-303/JSR-380 Bean Validation
+            - @NotNull, @NotBlank, @Size, @Min, @Max, etc.
+            - Hibernate Validator implementation
+
+            Use case:
+            - Validating request DTOs with @Valid
+            - Ensuring data integrity
+            - Automatic validation error responses
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--
+            Spring Cloud Starter Netflix Eureka Client
+
+            Provides:
+            - Service registration with Eureka Server
+            - Service discovery capabilities
+            - Load balancing support
+            - Health check integration
+
+            Use case:
+            - Register Order Service with Eureka (service discovery)
+            - Allow other services to find this service
+            - Enable communication between microservices
+            - Automatic failover and load balancing
+
+            How it works:
+            1. Order Service starts up
+            2. Connects to Eureka Server (localhost:8761)
+            3. Registers itself with service name "order-service"
+            4. Sends heartbeat every 30 seconds to stay registered
+            5. Other services can discover Order Service via Eureka
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <!--
+            Spring Boot Starter Security
+
+            Provides:
+            - Authentication and authorization
+            - JWT token validation
+            - Security filters
+            - Password encoding (BCrypt)
+
+            Use case:
+            - Validate JWT tokens from User Service
+            - Protect endpoints (require authentication)
+            - Extract user information from tokens
+            - Role-based access control
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!--
+            JJWT (JSON Web Token) Libraries
+
+            Three dependencies needed for complete JWT support:
+            1. jjwt-api: Core JWT API
+            2. jjwt-impl: Implementation
+            3. jjwt-jackson: JSON processing with Jackson
+
+            Use case:
+            - Parse and validate JWT tokens
+            - Extract claims (user ID, email, roles)
+            - Verify token signature
+            - Check token expiration
+        -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.3</version>
+            <!-- runtime scope: Only needed at runtime, not for compilation -->
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.3</version>
+            <!-- runtime scope: Only needed at runtime -->
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            MySQL Connector
+
+            JDBC driver for MySQL database
+
+            Use case:
+            - Connect to MySQL database
+            - Execute SQL queries
+            - Handle MySQL-specific data types
+
+            Runtime scope because:
+            - Code uses JPA/Hibernate interfaces (not MySQL-specific)
+            - Driver loaded dynamically at runtime
+            - Allows switching databases without code changes
+        -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <!-- runtime scope: Loaded dynamically, not used in code directly -->
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            Lombok
+
+            Code generation library that reduces boilerplate
+
+            Provides annotations:
+            - @Data: Generates getters, setters, toString, equals, hashCode
+            - @NoArgsConstructor: Generates no-argument constructor
+            - @AllArgsConstructor: Generates constructor with all fields
+            - @RequiredArgsConstructor: Generates constructor for final fields
+            - @Builder: Implements builder pattern
+            - @Slf4j: Generates logger field
+
+            Use case:
+            - Reduce boilerplate in entities and DTOs
+            - Generate constructors for dependency injection
+            - Create builder pattern for clean object creation
+
+            How it works:
+            - Annotation processor runs during compilation
+            - Generates code at compile time
+            - IDE plugins show generated code
+
+            Optional = true means:
+            - Projects depending on this don't inherit Lombok
+            - Lombok only needed during compilation
+        -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Spring Boot Starter Actuator
+
+            Production-ready features for monitoring and management
+
+            Provides endpoints:
+            - /actuator/health: Application health status
+            - /actuator/info: Application information
+            - /actuator/metrics: Performance metrics
+
+            Use case:
+            - Eureka uses /actuator/health for health checks
+            - Monitor application status
+            - Expose metrics for Prometheus/Grafana
+            - Debug production issues
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!--
+            Spring Boot Starter Test
+
+            Testing framework and utilities
+
+            Provides:
+            - JUnit 5 (testing framework)
+            - Mockito (mocking framework)
+            - Spring Test (integration testing)
+            - AssertJ (fluent assertions)
+            - Hamcrest (matchers)
+
+            Use case:
+            - Unit tests for services
+            - Integration tests for controllers
+            - Mock dependencies
+            - Test database operations
+
+            Test scope means:
+            - Only available during testing
+            - Not included in production JAR
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <!-- test scope: Only for testing, not in production -->
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+            Spring Security Test
+
+            Testing utilities for Spring Security
+
+            Provides:
+            - @WithMockUser: Test with authenticated user
+            - @WithAnonymousUser: Test as anonymous
+            - SecurityMockMvcRequestPostProcessors: Mock authentication
+
+            Use case:
+            - Test secured endpoints
+            - Mock authentication in tests
+            - Test role-based access control
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!--
+        Dependency Management
+
+        Defines versions for dependencies without actually including them
+        Used by Spring Cloud to ensure compatible versions
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                Spring Cloud Dependencies BOM (Bill of Materials)
+
+                Ensures all Spring Cloud dependencies use compatible versions
+                We specified version in <properties> section
+            -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <!-- type pom means this is a BOM, not a JAR -->
+                <type>pom</type>
+                <!-- import scope: Import version management only -->
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!--
+        Build Configuration
+
+        Defines how to build the project
+    -->
+    <build>
+        <plugins>
+            <!--
+                Spring Boot Maven Plugin
+
+                Provides:
+                - Package application as executable JAR
+                - Embed dependencies in JAR
+                - Provide build information
+                - Support for running app with mvn spring-boot:run
+
+                What it does:
+                1. Creates "fat JAR" (includes all dependencies)
+                2. Makes JAR executable: java -jar order-service.jar
+                3. Sets up classpath correctly
+                4. Includes embedded Tomcat server
+
+                Configuration:
+                - excludes Lombok: Don't include in final JAR (compile-time only)
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!--
+                        Exclude Lombok from final JAR
+                        Lombok is only needed at compile time
+                        Generated code is already in .class files
+                    -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <!--
+        Build Summary
+        ===============
+
+        To build this project:
+        1. mvn clean: Delete old build files
+        2. mvn compile: Compile Java source code
+        3. mvn test: Run unit tests
+        4. mvn package: Create JAR file
+        5. mvn spring-boot:run: Run application
+
+        Build output:
+        - target/order-service-1.0.0-SNAPSHOT.jar: Executable JAR
+        - Contains all dependencies (fat JAR)
+        - Can be deployed to any server with Java 17+
+
+        Dependencies Summary:
+        - Spring Boot Web: REST APIs
+        - Spring Data JPA: Database access
+        - Spring Security: Authentication/Authorization
+        - Eureka Client: Service discovery
+        - MySQL: Database driver
+        - JWT: Token validation
+        - Lombok: Reduce boilerplate
+        - Actuator: Monitoring
+    -->
+
+</project>

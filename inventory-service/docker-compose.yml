@@ -1,0 +1,494 @@
+# =============================================================================
+# Inventory Service - Docker Compose Configuration
+# =============================================================================
+#
+# Purpose:
+# --------
+# Orchestrates Inventory Service and its dependencies for local development.
+# Runs MySQL database and Inventory Service in Docker containers.
+#
+# Services:
+# ---------
+# 1. mysql-inventory: MySQL 8.0 database for inventory data
+# 2. inventory-service: Inventory microservice (Spring Boot)
+#
+# Usage:
+# ------
+# Start services:     docker-compose up -d
+# Stop services:      docker-compose down
+# View logs:          docker-compose logs -f
+# Rebuild:            docker-compose up -d --build
+# Remove volumes:     docker-compose down -v
+#
+# Prerequisites:
+# --------------
+# - Docker installed (version 20.10+)
+# - Docker Compose installed (version 2.0+)
+# - Ports 8085 and 3310 available
+# - Eureka server running (on host or separate compose)
+#
+# Network:
+# --------
+# All services connect to 'ecommerce-network'.
+# This allows communication between services.
+#
+# Volumes:
+# --------
+# MySQL data persisted in 'inventory-mysql-data' volume.
+# Data survives container restarts.
+#
+# =============================================================================
+
+# Compose file version
+# Version 3.8 supports all features we need.
+#
+version: '3.8'
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # MySQL Database for Inventory Service
+  # ---------------------------------------------------------------------------
+  # Stores inventory data, stock movements, and audit trail.
+  #
+  mysql-inventory:
+    # Use official MySQL 8.0 image from Docker Hub
+    # Why 8.0?
+    # - Latest stable version
+    # - Better performance than 5.7
+    # - JSON support (useful for future features)
+    # - Window functions (useful for analytics)
+    #
+    image: mysql:8.0
+
+    # Container name for easy reference
+    # Can connect to this from other containers using this name.
+    #
+    container_name: mysql-inventory
+
+    # Environment variables for MySQL configuration
+    # These variables configure the MySQL server on first startup.
+    #
+    environment:
+      # Root password for MySQL
+      # Security note: Change this in production!
+      # Better: Use Docker secrets or environment file
+      #
+      MYSQL_ROOT_PASSWORD: root
+
+      # Database name to create automatically
+      # MySQL creates this database on first startup.
+      # Matches application.yml: spring.datasource.url
+      #
+      MYSQL_DATABASE: inventorydb
+
+      # Optional: Create non-root user
+      # Better security practice for production
+      # Uncomment these for production:
+      # MYSQL_USER: inventory_user
+      # MYSQL_PASSWORD: secure_password_here
+
+    # Port mapping: host:container
+    # Maps MySQL port 3306 (inside container) to 3310 (on host).
+    #
+    # Why 3310 instead of 3306?
+    # - Avoid conflicts with other MySQL instances
+    # - Each microservice uses different port
+    # - Order: 3308, Payment: 3309, Inventory: 3310
+    #
+    # Access from host:
+    # - mysql -h localhost -P 3310 -u root -p
+    # - JDBC: jdbc:mysql://localhost:3310/inventorydb
+    #
+    # Access from other containers:
+    # - Use service name: mysql-inventory
+    # - Use internal port: 3306
+    # - JDBC: jdbc:mysql://mysql-inventory:3306/inventorydb
+    #
+    ports:
+      - "3310:3306"
+
+    # Persistent volume for database data
+    # Stores MySQL data files on host machine.
+    #
+    # Why use volumes?
+    # - Data survives container restarts
+    # - Data survives container deletion
+    # - Only deleted with: docker-compose down -v
+    #
+    # Volume mapping:
+    # - inventory-mysql-data: Named volume (defined below)
+    # - /var/lib/mysql: MySQL data directory inside container
+    #
+    volumes:
+      - inventory-mysql-data:/var/lib/mysql
+
+    # Network configuration
+    # Connects to shared network for inter-service communication.
+    #
+    networks:
+      - ecommerce-network
+
+    # Health check for MySQL
+    # Docker monitors MySQL health and marks service as healthy.
+    #
+    # Why health checks?
+    # - Other services can wait for MySQL to be ready
+    # - Docker can restart unhealthy containers
+    # - Prevents "connection refused" errors on startup
+    #
+    # Command: mysqladmin ping
+    # - Checks if MySQL server is responding
+    # - Returns 0 if healthy, non-zero if unhealthy
+    #
+    # Options:
+    # - interval: Check every 10 seconds
+    # - timeout: Wait up to 5 seconds for response
+    # - retries: Try 5 times before marking unhealthy
+    # - start_period: Wait 30 seconds before first check (MySQL startup time)
+    #
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Inventory Service (Spring Boot Application)
+  # ---------------------------------------------------------------------------
+  # Manages inventory levels, stock reservations, and stock movements.
+  #
+  inventory-service:
+    # Build Docker image from Dockerfile in current directory
+    #
+    # Build configuration:
+    # - context: Directory containing Dockerfile (current directory)
+    # - dockerfile: Name of Dockerfile (default: Dockerfile)
+    #
+    # Docker Compose builds image automatically on first run.
+    # Rebuild with: docker-compose up -d --build
+    #
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name for easy reference
+    #
+    container_name: inventory-service
+
+    # Port mapping: host:container
+    # Maps Spring Boot port 8085 (inside container) to 8085 (on host).
+    #
+    # Access:
+    # - From host: http://localhost:8085
+    # - From other containers: http://inventory-service:8085
+    #
+    # API endpoints:
+    # - http://localhost:8085/api/inventory/{productId}
+    # - http://localhost:8085/api/inventory/{productId}/reserve
+    # - http://localhost:8085/api/inventory/low-stock
+    #
+    ports:
+      - "8085:8085"
+
+    # Environment variables for Spring Boot application
+    # These override values in application.yml.
+    #
+    environment:
+      # Database Configuration
+      # ----------------------
+      # Connect to MySQL container using service name.
+      #
+      # Why mysql-inventory instead of localhost?
+      # - Docker DNS resolves service names
+      # - Containers communicate via internal network
+      # - localhost inside container refers to the container itself
+      #
+      # Why port 3306 instead of 3310?
+      # - 3306 is internal port inside MySQL container
+      # - 3310 is external port mapped to host
+      # - Containers talk to each other using internal ports
+      #
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-inventory:3306/inventorydb
+
+      # Database credentials
+      # Must match MySQL environment variables above.
+      #
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+
+      # JPA/Hibernate Configuration
+      # ---------------------------
+      # Automatically create/update database schema on startup.
+      #
+      # Options:
+      # - none: Don't modify schema
+      # - validate: Validate schema matches entities
+      # - update: Update schema (add new tables/columns, don't drop)
+      # - create: Drop and recreate schema every time (lose data!)
+      # - create-drop: Drop schema on shutdown
+      #
+      # Development: update (preserves data, adds new tables)
+      # Production: validate (manual migrations with Flyway/Liquibase)
+      #
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+      # Service Discovery
+      # -----------------
+      # Register with Eureka server running on host machine.
+      #
+      # Why host.docker.internal?
+      # - Special DNS name that resolves to host machine
+      # - Allows container to connect to services on host
+      # - Alternative: Run Eureka in Docker and use service name
+      #
+      # If Eureka is also in Docker Compose:
+      # - Change to: http://eureka-server:8761/eureka/
+      # - Add depends_on: eureka-server
+      #
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://host.docker.internal:8761/eureka/
+
+      # Eureka Instance Configuration
+      # -----------------------------
+      # How this service appears in Eureka.
+      #
+      # Hostname:
+      # - Use container name for container-to-container communication
+      # - Other services will call: http://inventory-service:8085
+      #
+      EUREKA_INSTANCE_HOSTNAME: inventory-service
+
+      # Prefer IP address for instance registration
+      # Helps with container networking.
+      #
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: true
+
+      # JWT Configuration
+      # -----------------
+      # Secret key for JWT token validation.
+      # Must match the secret used by other services.
+      #
+      # Security warning:
+      # - This is a default secret for development
+      # - Change this in production
+      # - Better: Use environment file or secrets management
+      # - Recommendation: 256-bit random string
+      #
+      APP_JWT_SECRET: mySecretKey12345
+
+      # Inventory Configuration
+      # -----------------------
+      # Business rules for inventory management.
+      #
+      # Low stock threshold:
+      # - Alert when available quantity falls below this
+      # - Used for "Low Stock!" badges
+      # - Can be overridden per product in database
+      #
+      APP_INVENTORY_LOW_STOCK_THRESHOLD: 10
+
+      # Allow negative stock:
+      # - false: Prevent selling when out of stock (default)
+      # - true: Allow backorders (sell items not in stock yet)
+      #
+      # If true:
+      # - availableQuantity can be negative
+      # - Customer can order even when out of stock
+      # - Business must fulfill later
+      #
+      APP_INVENTORY_ALLOW_NEGATIVE_STOCK: false
+
+    # Dependencies
+    # ------------
+    # Start services in correct order.
+    #
+    # depends_on with condition:
+    # - service_healthy: Wait for MySQL to be healthy
+    # - Prevents "Connection refused" errors
+    # - Uses MySQL health check (defined above)
+    #
+    # Note: This only waits for container health, not application readiness.
+    # Spring Boot will retry database connection if needed.
+    #
+    depends_on:
+      mysql-inventory:
+        condition: service_healthy
+
+    # Network configuration
+    # Same network as MySQL for inter-service communication.
+    #
+    networks:
+      - ecommerce-network
+
+    # Restart policy
+    # --------------
+    # Automatically restart container if it crashes.
+    #
+    # Options:
+    # - no: Never restart
+    # - always: Always restart (even after host reboot)
+    # - on-failure: Only restart if exit code is non-zero
+    # - unless-stopped: Always restart unless manually stopped
+    #
+    # Development: unless-stopped (don't restart after manual stop)
+    # Production: always (maximum availability)
+    #
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+# Define networks for service communication.
+#
+networks:
+  # Shared network for all e-commerce microservices
+  # All services can communicate with each other on this network.
+  #
+  # Driver: bridge (default)
+  # - Creates isolated network on host
+  # - Services can talk to each other by service name
+  # - Provides DNS resolution
+  #
+  # To connect other services to this network:
+  # 1. In other docker-compose.yml: networks: ecommerce-network: external: true
+  # 2. Or: Include all services in one docker-compose.yml
+  #
+  ecommerce-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+# Define named volumes for persistent data.
+#
+volumes:
+  # MySQL data volume for Inventory Service
+  # Stores database files persistently.
+  #
+  # Location on host:
+  # - Linux: /var/lib/docker/volumes/inventory-service_inventory-mysql-data/_data
+  # - Mac: ~/Library/Containers/com.docker.docker/Data/vms/0/
+  # - Windows: \\wsl$\docker-desktop-data\version-pack-data\community\docker\volumes\
+  #
+  # Management commands:
+  # - List volumes: docker volume ls
+  # - Inspect volume: docker volume inspect inventory-service_inventory-mysql-data
+  # - Remove volume: docker volume rm inventory-service_inventory-mysql-data
+  # - Remove all unused: docker volume prune
+  #
+  # Data survives:
+  # - docker-compose down
+  # - docker-compose restart
+  # - Container deletion
+  #
+  # Data deleted by:
+  # - docker-compose down -v (with -v flag)
+  # - docker volume rm (manual deletion)
+  #
+  inventory-mysql-data:
+
+# =============================================================================
+# Complete Startup Sequence
+# =============================================================================
+#
+# 1. docker-compose up -d
+#    ↓
+# 2. Create network: ecommerce-network
+#    ↓
+# 3. Create volume: inventory-mysql-data
+#    ↓
+# 4. Start mysql-inventory container
+#    ↓
+# 5. MySQL initializes database (first run only)
+#    - Creates inventorydb database
+#    - Sets root password
+#    ↓
+# 6. Health check runs every 10s
+#    - Waits for MySQL to be ready
+#    - Retries up to 5 times
+#    ↓
+# 7. MySQL marked as healthy
+#    ↓
+# 8. Start inventory-service container
+#    - Depends on MySQL being healthy
+#    ↓
+# 9. Spring Boot starts
+#    - Connects to MySQL
+#    - Creates tables (if ddl-auto=update)
+#    - Registers with Eureka
+#    ↓
+# 10. Service ready to accept requests
+#
+# =============================================================================
+# Troubleshooting
+# =============================================================================
+#
+# Service won't start:
+# --------------------
+# 1. Check logs: docker-compose logs -f inventory-service
+# 2. Check MySQL: docker-compose logs -f mysql-inventory
+# 3. Verify ports available: netstat -an | grep 8085
+# 4. Rebuild image: docker-compose up -d --build
+#
+# Database connection errors:
+# ---------------------------
+# 1. Verify MySQL is healthy: docker-compose ps
+# 2. Check connection string: docker-compose config
+# 3. Test MySQL connection: docker exec -it mysql-inventory mysql -u root -p
+#
+# Port already in use:
+# --------------------
+# 1. Find process: lsof -i :8085 (Mac/Linux) or netstat -ano | findstr :8085 (Windows)
+# 2. Kill process or change port in docker-compose.yml
+# 3. Restart: docker-compose down && docker-compose up -d
+#
+# Data persistence issues:
+# ------------------------
+# 1. Check volume: docker volume inspect inventory-service_inventory-mysql-data
+# 2. Volume not created: docker-compose down && docker-compose up -d
+# 3. Want fresh start: docker-compose down -v (WARNING: deletes data!)
+#
+# Eureka registration fails:
+# --------------------------
+# 1. Verify Eureka running: curl http://localhost:8761
+# 2. Check environment variable: docker-compose config | grep EUREKA
+# 3. If Eureka in Docker: Change to service name instead of host.docker.internal
+#
+# =============================================================================
+# Production Considerations
+# =============================================================================
+#
+# Security:
+# ---------
+# 1. Change default passwords (MySQL, JWT secret)
+# 2. Use Docker secrets or external env file
+# 3. Don't commit sensitive data to git
+# 4. Use non-root MySQL user
+# 5. Enable SSL/TLS for MySQL connection
+#
+# Performance:
+# ------------
+# 1. Set MySQL memory limits
+# 2. Configure connection pool size
+# 3. Add resource limits to services (memory, CPU)
+# 4. Use production-grade MySQL configuration
+#
+# Reliability:
+# ------------
+# 1. Add health check to inventory-service
+# 2. Configure proper restart policies
+# 3. Set up log rotation
+# 4. Use external monitoring (Prometheus, Grafana)
+#
+# Scalability:
+# ------------
+# 1. Separate MySQL to dedicated server
+# 2. Use managed database service (AWS RDS, Azure Database)
+# 3. Scale service with: docker-compose up -d --scale inventory-service=3
+# 4. Add load balancer (nginx, HAProxy)
+#
+# =============================================================================
