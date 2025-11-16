@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven Project Object Model (POM) file for Product Service -->
+<!-- This file defines project dependencies, plugins, and build configuration -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <!-- Maven POM model version - always 4.0.0 for Maven 2 and 3 -->
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Parent POM reference - Spring Boot starter parent provides dependency management -->
+    <!-- This means we don't need to specify versions for most Spring dependencies -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version> <!-- Spring Boot version 3.2.0 (latest stable) -->
+        <relativePath/> <!-- Look up parent from Maven repository, not local file system -->
+    </parent>
+
+    <!-- Project coordinates - uniquely identify this project -->
+    <groupId>com.ecommerce</groupId> <!-- Organization/company identifier -->
+    <artifactId>product-service</artifactId> <!-- Project name -->
+    <version>1.0.0</version> <!-- Project version -->
+    <name>Product Service</name> <!-- Human-readable project name -->
+    <description>Product Service for E-commerce Application - Manages product catalog, categories, and inventory</description>
+
+    <!-- Project properties - define Java version and dependency versions -->
+    <properties>
+        <!-- Java version to compile the project with -->
+        <java.version>17</java.version>
+
+        <!-- Spring Cloud version - must be compatible with Spring Boot version -->
+        <!-- Spring Cloud 2023.0.0 is compatible with Spring Boot 3.2.x -->
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
+    </properties>
+
+    <!-- Project dependencies - external libraries this project needs -->
+    <dependencies>
+
+        <!-- Spring Boot Starter Web - includes Spring MVC, REST, Tomcat, and JSON support -->
+        <!-- This is the core dependency for building REST APIs -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter Data JPA - includes Spring Data, Hibernate, and JPA -->
+        <!-- Provides object-relational mapping (ORM) to interact with MySQL database -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- MySQL Connector - JDBC driver for MySQL database -->
+        <!-- Allows Java application to connect to MySQL database -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope> <!-- Only needed at runtime, not for compilation -->
+        </dependency>
+
+        <!-- Spring Boot Starter Validation - provides JSR-303 Bean Validation -->
+        <!-- Used for validating request data (e.g., @NotNull, @Size, @Email annotations) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Eureka Client - Netflix Service Discovery client -->
+        <!-- Allows this microservice to register itself with Eureka Server -->
+        <!-- Other services can then discover this service through Eureka -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter Actuator - provides production-ready features -->
+        <!-- Exposes endpoints for health checks, metrics, and application info -->
+        <!-- Eureka uses /actuator/health to monitor service health -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Lombok - reduces boilerplate code with annotations -->
+        <!-- Automatically generates getters, setters, constructors, equals, hashCode, toString -->
+        <!-- Example: @Data annotation generates all of the above -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional> <!-- Not transitively inherited by projects depending on this -->
+            <scope>provided</scope> <!-- Only needed at compile time, not in final JAR -->
+        </dependency>
+
+        <!-- Spring Boot Starter Test - includes JUnit, Mockito, AssertJ, and more -->
+        <!-- Used for writing unit and integration tests -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope> <!-- Only available during test compilation and execution -->
+        </dependency>
+
+        <!-- SpringDoc OpenAPI - generates API documentation (Swagger UI) -->
+        <!-- Accessible at http://localhost:8081/swagger-ui.html -->
+        <!-- Provides interactive API documentation for developers -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.3.0</version>
+        </dependency>
+
+    </dependencies>
+
+    <!-- Dependency Management - defines versions for Spring Cloud dependencies -->
+    <!-- This ensures all Spring Cloud dependencies use compatible versions -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Cloud BOM (Bill of Materials) - imports all Spring Cloud dependency versions -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type> <!-- This is a POM file that defines versions, not a JAR -->
+                <scope>import</scope> <!-- Import the dependency management from this POM -->
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- Build configuration - defines how to build the project -->
+    <build>
+        <plugins>
+            <!-- Spring Boot Maven Plugin - packages the application as an executable JAR -->
+            <!-- Creates a "fat JAR" with all dependencies included -->
+            <!-- Can be run with: java -jar product-service-1.0.0.jar -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- Exclude Lombok from the final JAR since it's only needed at compile time -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

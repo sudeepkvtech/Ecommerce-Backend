@@ -1,0 +1,312 @@
+# Spring Boot Application Configuration File for User Service
+# This YAML file configures all aspects of the User Service application
+
+# ============================================
+# SERVER CONFIGURATION
+# ============================================
+server:
+  # Port number on which this service will run
+  # Each microservice should have a unique port
+  # Product Service: 8081
+  # User Service: 8082 (this service)
+  port: 8082
+
+  # Servlet context path - all endpoints will be prefixed with this
+  # Example: http://localhost:8082/user-service/api/auth/login
+  servlet:
+    context-path: /user-service
+
+# ============================================
+# SPRING APPLICATION CONFIGURATION
+# ============================================
+spring:
+  # Application name - VERY IMPORTANT for microservices
+  # This name is used to register with Eureka Server
+  application:
+    name: user-service
+
+  # ============================================
+  # DATABASE CONFIGURATION (MySQL)
+  # ============================================
+  datasource:
+    # JDBC URL to connect to MySQL database
+    # userdb - name of the database for user service
+    url: jdbc:mysql://localhost:3306/userdb?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+
+    # Database credentials
+    username: root
+    password: root
+
+    # JDBC driver class name
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ============================================
+  # JPA (Java Persistence API) CONFIGURATION
+  # ============================================
+  jpa:
+    # Hibernate DDL auto mode
+    # update: Updates schema if necessary (recommended for development)
+    hibernate:
+      ddl-auto: update
+
+    # Show SQL queries in console
+    show-sql: true
+
+    # Hibernate properties
+    properties:
+      hibernate:
+        # MySQL 8 dialect for optimized SQL queries
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+        # Format SQL queries for better readability
+        format_sql: true
+
+        # Show SQL comments
+        use_sql_comments: true
+
+# ============================================
+# JWT (JSON Web Token) CONFIGURATION
+# ============================================
+# JWT is used for stateless authentication
+# After login, server generates a token
+# Client sends this token with each request
+# Server validates token to authenticate user
+jwt:
+  # Secret key for signing JWT tokens
+  # SECURITY WARNING: Change this in production!
+  # Should be a long, random string (at least 256 bits / 32 characters)
+  # In production:
+  # - Store in environment variable or secrets manager
+  # - Use a strong, randomly generated key
+  # - Never commit to version control
+  secret: ThisIsAVeryLongSecretKeyForJWTTokenGenerationAndValidationPleaseChangeInProduction
+
+  # Token expiration time in milliseconds
+  # 86400000 ms = 24 hours
+  # After this time, token becomes invalid and user must login again
+  # Common values:
+  # - 15 minutes: 900000 (high security)
+  # - 1 hour: 3600000 (balanced)
+  # - 24 hours: 86400000 (convenience)
+  # - 7 days: 604800000 (remember me)
+  expiration: 86400000  # 24 hours
+
+  # Token prefix used in Authorization header
+  # Example: "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  # "Bearer " is the standard OAuth2 token type
+  # Space after "Bearer" is important!
+  token-prefix: "Bearer "
+
+  # Header name where token is sent
+  # Standard HTTP header for authentication
+  # Client sends: Authorization: Bearer <token>
+  # Server reads token from this header
+  header-name: Authorization
+
+# ============================================
+# EUREKA CLIENT CONFIGURATION (Service Discovery)
+# ============================================
+eureka:
+  client:
+    # Enable Eureka client
+    enabled: true
+
+    # Fetch registry from Eureka Server
+    # Allows this service to discover other services
+    fetch-registry: true
+
+    # Register this service with Eureka Server
+    # Allows other services to discover this service
+    register-with-eureka: true
+
+    # URL of Eureka Server
+    # Default Eureka Server port is 8761
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+  instance:
+    # Hostname for registration
+    hostname: localhost
+
+    # Use IP address instead of hostname
+    # Recommended for containerized environments
+    prefer-ip-address: true
+
+    # Unique instance ID
+    # Format: ${spring.application.name}:${random.value}
+    instance-id: ${spring.application.name}:${random.value}
+
+    # Heartbeat interval (in seconds)
+    # How often to send "I'm alive" signal to Eureka
+    lease-renewal-interval-in-seconds: 30
+
+    # Lease expiration duration (in seconds)
+    # If no heartbeat received, Eureka marks service as DOWN
+    lease-expiration-duration-in-seconds: 90
+
+# ============================================
+# ACTUATOR CONFIGURATION (Health & Monitoring)
+# ============================================
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose these endpoints over HTTP
+        # health: Shows application health (used by Eureka)
+        # info: Shows application information
+        # metrics: Shows various metrics
+        include: health,info,metrics
+
+  endpoint:
+    health:
+      # Show detailed health information
+      # Options: always, never, when-authorized
+      show-details: always
+
+  # Application info
+  info:
+    env:
+      enabled: true
+
+# ============================================
+# APPLICATION INFO (visible in Actuator)
+# ============================================
+info:
+  app:
+    name: User Service
+    description: Manages user authentication, authorization, and profile management for e-commerce platform
+    version: 1.0.0
+
+# ============================================
+# LOGGING CONFIGURATION
+# ============================================
+logging:
+  level:
+    # Root logging level
+    root: INFO
+
+    # Package-specific logging levels
+    com.ecommerce.userservice: DEBUG
+
+    # Spring Web logs (HTTP requests/responses)
+    org.springframework.web: DEBUG
+
+    # Spring Security logs (authentication/authorization)
+    org.springframework.security: DEBUG
+
+    # Hibernate SQL logs
+    org.hibernate.SQL: DEBUG
+
+    # Hibernate SQL parameter logs
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# ============================================
+# SPRING SECURITY CONFIGURATION
+# ============================================
+# Most security configuration is done in SecurityConfig.java
+# But some properties can be configured here
+
+# Note: Default behavior
+# - All endpoints are secured by default
+# - Must authenticate to access any endpoint
+# - Exceptions configured in SecurityConfig.java
+# - Public endpoints: /api/auth/**, /actuator/**
+
+# ============================================
+# SECURITY NOTES
+# ============================================
+#
+# JWT Authentication Flow:
+# ------------------------
+# 1. User sends login request with username/password
+#    POST /api/auth/login
+#    { "email": "user@example.com", "password": "password123" }
+#
+# 2. Server validates credentials against database
+#    - Find user by email
+#    - Compare password with BCrypt hash
+#
+# 3. If valid, server generates JWT token
+#    - Token contains: user ID, email, roles
+#    - Token is signed with secret key
+#    - Token has expiration time
+#
+# 4. Server returns token to client
+#    { "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "type": "Bearer" }
+#
+# 5. Client stores token (localStorage, sessionStorage, cookie)
+#
+# 6. For subsequent requests, client sends token in header
+#    Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+#
+# 7. Server validates token on each request
+#    - Verify signature (hasn't been tampered)
+#    - Check expiration (not expired)
+#    - Extract user information
+#
+# 8. If token valid, process request
+#    If token invalid/expired, return 401 Unauthorized
+#
+# ============================================
+# PASSWORD SECURITY
+# ============================================
+#
+# Passwords are NEVER stored in plain text!
+# We use BCrypt hashing algorithm:
+#
+# Registration:
+# - User provides password: "myPassword123"
+# - Server hashes with BCrypt: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+# - Hash is stored in database
+#
+# Login:
+# - User provides password: "myPassword123"
+# - Server retrieves hash from database
+# - BCrypt compares password with hash
+# - Match: Login successful
+# - No match: Login failed
+#
+# Why BCrypt?
+# - Slow by design (prevents brute force)
+# - Automatic salt generation (prevents rainbow tables)
+# - Adaptive (can increase rounds as computers get faster)
+# - Industry standard
+#
+# ============================================
+# ROLE-BASED ACCESS CONTROL (RBAC)
+# ============================================
+#
+# Roles define what users can do:
+# - ROLE_USER: Regular customer (can view products, place orders)
+# - ROLE_ADMIN: Administrator (can manage products, users, etc.)
+#
+# Authorization checks:
+# - @PreAuthorize("hasRole('ADMIN')") on controller methods
+# - Only users with ADMIN role can access
+#
+# Example:
+# @PreAuthorize("hasRole('ADMIN')")
+# @DeleteMapping("/users/{id}")
+# public void deleteUser(@PathVariable Long id) {
+#     // Only admins can delete users
+# }
+#
+# ============================================
+# PRODUCTION SECURITY CHECKLIST
+# ============================================
+#
+# 1. Change JWT secret to a strong random value
+# 2. Store secrets in environment variables
+# 3. Use HTTPS in production (encrypt traffic)
+# 4. Enable CSRF protection for web forms
+# 5. Implement rate limiting (prevent brute force)
+# 6. Add password complexity requirements
+# 7. Implement account lockout after failed attempts
+# 8. Add email verification for registration
+# 9. Implement password reset functionality
+# 10. Log security events (failed logins, etc.)
+# 11. Regular security audits and updates
+# 12. Use strong database passwords
+# 13. Implement two-factor authentication (2FA)
+# 14. Set appropriate token expiration times
+# 15. Rotate JWT secret keys periodically

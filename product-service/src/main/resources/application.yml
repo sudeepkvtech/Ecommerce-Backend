@@ -1,0 +1,188 @@
+# Spring Boot Application Configuration File
+# This YAML file configures all aspects of the Product Service application
+
+# ============================================
+# SERVER CONFIGURATION
+# ============================================
+server:
+  # Port number on which this service will run
+  # Each microservice should have a unique port
+  port: 8081
+
+  # Servlet context path - all endpoints will be prefixed with this
+  # Example: http://localhost:8081/product-service/api/products
+  servlet:
+    context-path: /product-service
+
+# ============================================
+# SPRING APPLICATION CONFIGURATION
+# ============================================
+spring:
+  # Application name - VERY IMPORTANT for microservices
+  # This name is used to:
+  # 1. Register with Eureka Server (Service Discovery)
+  # 2. Identify this service in logs and monitoring tools
+  # 3. Allow other services to discover and communicate with this service
+  application:
+    name: product-service
+
+  # ============================================
+  # DATABASE CONFIGURATION (MySQL)
+  # ============================================
+  datasource:
+    # JDBC URL to connect to MySQL database
+    # Format: jdbc:mysql://[host]:[port]/[database_name]
+    # localhost:3306 - MySQL server location and port
+    # productdb - name of the database (will be created if it doesn't exist)
+    # createDatabaseIfNotExist=true - automatically creates database
+    # useSSL=false - disables SSL for local development
+    # serverTimezone=UTC - sets timezone to avoid timezone errors
+    url: jdbc:mysql://localhost:3306/productdb?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC
+
+    # Database username for authentication
+    username: root
+
+    # Database password for authentication
+    password: root
+
+    # JDBC driver class name - tells Spring which driver to use for MySQL
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ============================================
+  # JPA (Java Persistence API) CONFIGURATION
+  # ============================================
+  jpa:
+    # Hibernate DDL (Data Definition Language) auto mode
+    # Options:
+    # - none: Do nothing
+    # - validate: Validate schema, make no changes to database
+    # - update: Update schema if necessary (RECOMMENDED for development)
+    # - create: Create schema, destroying previous data
+    # - create-drop: Create schema, drop when SessionFactory closes
+    hibernate:
+      ddl-auto: update  # Automatically updates database tables based on entity classes
+
+    # Show SQL queries in console - useful for debugging
+    # Set to false in production for better performance
+    show-sql: true
+
+    # Properties specific to Hibernate (JPA implementation)
+    properties:
+      hibernate:
+        # SQL dialect - tells Hibernate which MySQL version's SQL to generate
+        # This optimizes queries for MySQL 8
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+        # Format SQL queries in console for better readability
+        format_sql: true
+
+        # Show SQL comments that explain what Hibernate is doing
+        use_sql_comments: true
+
+# ============================================
+# EUREKA CLIENT CONFIGURATION (Service Discovery)
+# ============================================
+eureka:
+  client:
+    # Enable Eureka client - this service will register with Eureka Server
+    # When true, this service will:
+    # 1. Register itself with Eureka Server on startup
+    # 2. Send heartbeats every 30 seconds to show it's alive
+    # 3. Fetch the registry of other services for inter-service communication
+    enabled: true
+
+    # Should this client fetch the service registry from Eureka Server?
+    # When true, this service can discover and communicate with other services
+    # Set to false if this service doesn't need to call other services
+    fetch-registry: true
+
+    # Should this service register itself with Eureka Server?
+    # When true, other services can discover and communicate with this service
+    # Set to false if this is a pure client that only consumes other services
+    register-with-eureka: true
+
+    # URL(s) of Eureka Server(s)
+    # This tells the service where to find Eureka Server for registration
+    # Format: http://[eureka-host]:[eureka-port]/eureka/
+    # Multiple URLs can be comma-separated for high availability
+    service-url:
+      defaultZone: http://localhost:8761/eureka/  # Default Eureka Server port is 8761
+
+  instance:
+    # Hostname that will be registered with Eureka
+    # Other services will use this to communicate with this service
+    hostname: localhost
+
+    # Use IP address instead of hostname for registration
+    # Recommended in containerized environments (Docker, Kubernetes)
+    prefer-ip-address: true
+
+    # Unique instance ID for this service
+    # Format: ${spring.application.name}:${random.value}
+    # Useful when running multiple instances of the same service
+    instance-id: ${spring.application.name}:${random.value}
+
+    # Heartbeat interval - how often to send heartbeat to Eureka (in seconds)
+    # Default is 30 seconds - tells Eureka "I'm still alive"
+    lease-renewal-interval-in-seconds: 30
+
+    # Lease expiration duration - how long Eureka waits before removing this service (in seconds)
+    # Default is 90 seconds - if no heartbeat received, service is considered down
+    lease-expiration-duration-in-seconds: 90
+
+# ============================================
+# ACTUATOR CONFIGURATION (Health & Monitoring)
+# ============================================
+management:
+  endpoints:
+    web:
+      # Expose actuator endpoints over HTTP
+      # These endpoints provide information about the application
+      exposure:
+        # Include these endpoints: health, info, metrics, prometheus
+        # health: Shows application health status (used by Eureka)
+        # info: Shows application information
+        # metrics: Shows various metrics (memory, CPU, etc.)
+        # prometheus: Exposes metrics in Prometheus format
+        include: health,info,metrics,prometheus
+
+  endpoint:
+    health:
+      # Show detailed health information
+      # Options: always, never, when-authorized
+      show-details: always
+
+  # Application info - displayed in /actuator/info endpoint
+  info:
+    env:
+      enabled: true
+
+# ============================================
+# APPLICATION INFO (visible in Actuator)
+# ============================================
+info:
+  app:
+    name: Product Service
+    description: Manages product catalog, categories, and inventory for e-commerce platform
+    version: 1.0.0
+
+# ============================================
+# LOGGING CONFIGURATION
+# ============================================
+logging:
+  level:
+    # Root logging level - applies to all packages
+    root: INFO
+
+    # Package-specific logging levels
+    # com.ecommerce.productservice: Our application code - set to DEBUG to see detailed logs
+    com.ecommerce.productservice: DEBUG
+
+    # org.springframework.web: Spring MVC logs - shows HTTP requests/responses
+    org.springframework.web: DEBUG
+
+    # org.hibernate.SQL: Shows SQL queries executed by Hibernate
+    org.hibernate.SQL: DEBUG
+
+    # org.hibernate.type.descriptor.sql.BasicBinder: Shows SQL query parameters
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
